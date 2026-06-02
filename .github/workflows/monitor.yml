@@ -1,0 +1,76 @@
+name: JRMS News Monitor
+
+on:
+  schedule:
+    # This CRON expression tells GitHub to run the script every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allows you to run it manually to test it
+
+jobs:
+  check-site:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-module: '3.10'
+
+    - name: Install dependencies
+      run: |
+        pip install requests beautifulsoup4
+
+    - name: Run Scraper Script
+      env:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        python - << 'EOF'
+        import os
+        import requests
+        from bs4 import BeautifulSoup
+
+        URL = "https://jrms.jaf.mil.jo/News.aspx"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
+        try:
+            # 1. Fetch the webpage content
+            response = requests.get(URL, headers=headers, timeout=15)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 2. Extract the news section text 
+            # (Grabs the body text to detect if any layout or headline alters)
+            current_text = soup.get_text()
+
+            # 3. Check against the last saved version
+            history_file = "last_site_state.txt"
+            old_text = ""
+            if os.path.exists(history_file):
+                with open(history_file, "r", encoding="utf-8") as f:
+                    old_text = f.read()
+
+            # 4. If the content has changed, alert your phone!
+            if old_text and current_text != old_text:
+                message = f"🚨 JRMS News Update Detected!\nCheck the page: {URL}"
+                token = os.environ['TELEGRAM_TOKEN']
+                chat_id = os.environ['TELEGRAM_CHAT_ID']
+                tg_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                requests.post(tg_url, data={"chat_id": chat_id, "text": message})
+
+            # 5. Update the local file with the new content state
+            with open(history_file, "w", encoding="utf-8") as f:
+                f.write(current_text)
+
+        except Exception as e:
+            print(f"Error executing scrape: {e}")
+        EOF
+
+    - name: Commit and save structural changes
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        git add last_site_state.txt
+        git commit -m "Update last known webpage snapshot [skip ci]" || exit 0
+        git push
