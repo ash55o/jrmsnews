@@ -29,7 +29,7 @@ jobs:
         import hashlib
         from bs4 import BeautifulSoup
 
-        URL = "https://wikipedia.org"
+        URL = "https://jrms.jaf.mil.jo/News.aspx"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
         # We use your unique Telegram Chat ID to create a private, free cloud storage bucket line
